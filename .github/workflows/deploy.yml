@@ -1,0 +1,49 @@
+name: Build and Publish Artifacts
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  worker-image:
+    runs-on: ubuntu-latest
+    environment: AWS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: Build & push worker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          ECR_REPOSITORY: video-processor-worker
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  dlq-zip:
+    runs-on: ubuntu-latest
+    environment: AWS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Build dlq zip
+        run: docker build -f Dockerfile.dlq --target artifact --output type=local,dest=dist .
+      - name: Upload zip to artifacts bucket
+        run: |
+          aws s3 cp dist/dlq-handler.zip \
+            s3://${{ vars.ARTIFACTS_BUCKET }}/dlq-handler/${{ github.sha }}.zip
+          aws s3 cp dist/dlq-handler.zip \
+            s3://${{ vars.ARTIFACTS_BUCKET }}/dlq-handler/latest.zip

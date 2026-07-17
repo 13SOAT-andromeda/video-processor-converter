@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, develop, "release/**", "feature/**"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+      - name: Install ffmpeg (para testes que tocam mídia)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: go mod download
+      - run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Unit tests + coverage
+        run: go test ./... -coverprofile=coverage.out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - uses: golangci/golangci-lint-action@v6
+        with: { version: latest }
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Start LocalStack + bootstrap
+        run: docker compose up -d --build && sleep 10
+      - name: Integration tests
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET: video-processor-bucket
+          STATUS_QUEUE_URL: http://localhost:4566/000000000000/video-processing-status-queue
+        run: go test -tags=integration ./test/... -v
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,26 @@
+name: SonarQube / SonarCloud Scan
+on:
+  pull_request:
+    branches: [main, develop, "release/**", "feature/**"]
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Tests with coverage
+        run: go test ./... -coverprofile=coverage.out
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=13soat-andromeda
+            -Dsonar.projectKey=13SOAT-andromeda_video-processor-converter
+            -Dsonar.go.coverage.reportPaths=coverage.out
