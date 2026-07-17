@@ -1,0 +1,30 @@
+services:
+  localstack:
+    image: localstack/localstack:4
+    environment:
+      SERVICES: s3,sqs
+      DEBUG: 1
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    networks: [vpw-net]
+
+  bootstrap:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - localstack
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      S3_BUCKET: video-processor-bucket
+    volumes:
+      - ./deploy/localstack:/bootstrap
+    entrypoint: ["/bootstrap/bootstrap.sh"]
+    networks: [vpw-net]
+
+networks:
+  vpw-net:
+    name: vpw-net
+    driver: bridge
