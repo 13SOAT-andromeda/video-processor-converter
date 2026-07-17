@@ -35,6 +35,28 @@ make docker-build   # imagem de container do worker (ECR)
 make dist-dlq       # gera dist/dlq-handler.zip (deploy via zip)
 ```
 
+## Observabilidade (Datadog)
+
+Instrumentação em duas camadas:
+
+- **Lambda Extension** — embutida na imagem do worker (`COPY --from=public.ecr.aws/datadog/lambda-extension`); no `dlq-handler` (deploy via zip) entra por **Lambda Layers** (`Datadog-Extension` + `Datadog-Go`, x86_64), anexadas pelo repo de infra.
+- **`ddlambda.WrapFunction`** — nos dois `main.go`, cria o span raiz da invocação.
+
+Variáveis de ambiente (definidas pelo repo de infra nas Lambdas):
+
+| Var | Valor | Notas |
+|---|---|---|
+| `DD_API_KEY_SECRET_ARN` | ARN do secret com a API key | Resolvida via Secrets Manager — nunca a key em texto puro |
+| `DD_SITE` | ex.: `datadoghq.com` | Site da org Datadog |
+| `DD_ENV` | `dev` / `hml` / `prod` | Tag de ambiente |
+| `DD_SERVICE` | `processing-worker` / `dlq-handler` | Nome do serviço |
+| `DD_VERSION` | `${github.sha}` ou semver | Correlaciona deploy ↔ traces |
+| `DD_TRACE_ENABLED` | `true` (prod) / `false` (local) | Liga/desliga tracing |
+| `DD_SERVERLESS_LOGS_ENABLED` | `true` | Encaminha logs (stdout JSON do `slog`) |
+| `DD_LOGS_INJECTION` | `true` | Injeta `trace_id`/`span_id` nos logs |
+
+Localmente `DD_TRACE_ENABLED=false` (já no `.env.example`); sem agent, o wrapper opera em no-op.
+
 ## Testes
 
 ```bash
