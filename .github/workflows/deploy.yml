@@ -21,7 +21,7 @@ jobs:
       - name: Build & push worker image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_REPOSITORY: video-processor-worker
+          ECR_REPOSITORY: video-processor-worker-prod
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
