@@ -1,10 +1,11 @@
 services:
   localstack:
-    image: localstack/localstack:4
+    image: localstack/localstack-pro:2026.06
     environment:
       SERVICES: s3,sqs
       DEBUG: 1
       AWS_DEFAULT_REGION: us-east-1
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN}
     ports:
       - "4566:4566"
     networks: [vpw-net]
