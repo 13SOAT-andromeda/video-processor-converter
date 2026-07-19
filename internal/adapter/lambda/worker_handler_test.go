@@ -39,7 +39,7 @@ func newWorkerFixture(t *testing.T) *workerFixture {
 	logger := slog.New(slog.DiscardHandler)
 	uc := process_video.New(
 		f.storage, f.prober, f.extractor, f.archiver, f.publisher,
-		process_video.Config{ExpectedWidth: 1920, ExpectedHeight: 1080, TmpDir: t.TempDir()},
+		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: t.TempDir()},
 		logger,
 	)
 	f.handler = lambdaadapter.NewWorkerHandler(uc, logger)
@@ -85,7 +85,7 @@ func TestHandleInvalidResolutionIsNotFailure(t *testing.T) {
 	f.storage.On("Exists", mock.Anything, "bucket", mock.Anything).Return(false, nil)
 	f.publisher.On("Publish", mock.Anything, mock.Anything).Return(nil)
 	f.storage.On("Download", mock.Anything, "bucket", mock.Anything, mock.Anything).Return(nil)
-	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1280, Height: 720}, nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 2560, Height: 1440}, nil)
 
 	resp, err := f.handler.Handle(context.Background(), sqsEventForKey(t, "lnk_123/raw/apresentacao.mp4"))
 

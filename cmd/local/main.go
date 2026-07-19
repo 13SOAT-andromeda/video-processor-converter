@@ -68,7 +68,7 @@ func main() {
 		uc := process_video.New(
 			s3adapter.NewStorage(s3Client), ffprobe.NewProber(), ffmpeg.NewExtractor(cfg.FrameRate),
 			ziparchive.NewArchiver(), sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL),
-			process_video.Config{ExpectedWidth: cfg.ExpectedWidth, ExpectedHeight: cfg.ExpectedHeight, TmpDir: cfg.TmpDir},
+			process_video.Config{MaxWidth: cfg.MaxWidth, MaxHeight: cfg.MaxHeight, TmpDir: cfg.TmpDir},
 			logger,
 		)
 		handle = lambdaadapter.NewWorkerHandler(uc, logger).Handle

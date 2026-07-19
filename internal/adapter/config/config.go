@@ -14,10 +14,10 @@ type Config struct {
 	WorkerQueueURL string
 	DLQQueueURL    string
 	// pipeline:
-	ExpectedWidth  int
-	ExpectedHeight int
-	FrameRate      int
-	TmpDir         string
+	MaxWidth  int
+	MaxHeight int
+	FrameRate int
+	TmpDir    string
 }
 
 func getEnv(k, def string) string {
@@ -44,8 +44,8 @@ func Load() Config {
 		StatusQueueURL: getEnv("STATUS_QUEUE_URL", ""),
 		WorkerQueueURL: getEnv("WORKER_QUEUE_URL", ""),
 		DLQQueueURL:    getEnv("DLQ_QUEUE_URL", ""),
-		ExpectedWidth:  getEnvInt("EXPECTED_WIDTH", 1920),
-		ExpectedHeight: getEnvInt("EXPECTED_HEIGHT", 1080),
+		MaxWidth:       getEnvInt("MAX_WIDTH", 1920),
+		MaxHeight:      getEnvInt("MAX_HEIGHT", 1080),
 		FrameRate:      getEnvInt("FRAME_RATE", 1),
 		TmpDir:         getEnv("TMP_DIR", "/tmp"),
 	}

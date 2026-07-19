@@ -53,8 +53,10 @@ func TestNewProcessingJob(t *testing.T) {
 	})
 }
 
-func TestResolutionEquals(t *testing.T) {
-	res := domain.Resolution{Width: 1920, Height: 1080}
-	assert.True(t, res.Equals(1920, 1080))
-	assert.False(t, res.Equals(1280, 720))
+func TestResolutionFits(t *testing.T) {
+	assert.True(t, domain.Resolution{Width: 1920, Height: 1080}.Fits(1920, 1080), "limite exato é aceito")
+	assert.True(t, domain.Resolution{Width: 1280, Height: 720}.Fits(1920, 1080), "menor que o limite é aceito")
+	assert.False(t, domain.Resolution{Width: 2560, Height: 1440}.Fits(1920, 1080), "acima do limite é rejeitado")
+	assert.False(t, domain.Resolution{Width: 1920, Height: 1440}.Fits(1920, 1080), "basta uma dimensão exceder")
+	assert.False(t, domain.Resolution{Width: 3840, Height: 1080}.Fits(1920, 1080), "basta uma dimensão exceder")
 }

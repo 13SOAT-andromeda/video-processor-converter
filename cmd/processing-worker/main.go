@@ -49,9 +49,9 @@ func main() {
 		ziparchive.NewArchiver(),
 		sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL),
 		process_video.Config{
-			ExpectedWidth:  cfg.ExpectedWidth,
-			ExpectedHeight: cfg.ExpectedHeight,
-			TmpDir:         cfg.TmpDir,
+			MaxWidth:  cfg.MaxWidth,
+			MaxHeight: cfg.MaxHeight,
+			TmpDir:    cfg.TmpDir,
 		},
 		logger,
 	)

@@ -1,6 +1,6 @@
 # video-processor-converter
 
-Serviço `processing-worker` do desafio de processamento de vídeos (13SOAT / Andromeda). Consome eventos `ObjectCreated` do S3 via SQS (Lambda + Event Source Mapping), valida a resolução do vídeo (1920x1080), extrai 1 frame por segundo com ffmpeg, compacta os frames em um `.zip`, publica o resultado de volta no S3 e reporta o progresso na `video-processing-status-queue`. Inclui a Lambda companion `dlq-handler`, que marca como falha definitiva as mensagens que esgotaram as tentativas.
+Serviço `processing-worker` do desafio de processamento de vídeos (13SOAT / Andromeda). Consome eventos `ObjectCreated` do S3 via SQS (Lambda + Event Source Mapping), valida a resolução do vídeo (até 1920x1080 — resoluções menores são aceitas; maiores são rejeitadas com `invalid_resolution`), extrai 1 frame por segundo com ffmpeg, compacta os frames em um `.zip`, publica o resultado de volta no S3 e reporta o progresso na `video-processing-status-queue`. Inclui a Lambda companion `dlq-handler`, que marca como falha definitiva as mensagens que esgotaram as tentativas.
 
 Spec funcional: [`context/specs/service-processing-worker.md`](context/specs/service-processing-worker.md) (diretório `context/` não é versionado).
 

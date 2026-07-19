@@ -14,9 +14,9 @@ import (
 )
 
 type Config struct {
-	ExpectedWidth  int
-	ExpectedHeight int
-	TmpDir         string
+	MaxWidth  int
+	MaxHeight int
+	TmpDir    string
 }
 
 type UseCase struct {
@@ -80,13 +80,14 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 		return fmt.Errorf("download raw: %w", err)
 	}
 
-	// (Passo 5) Validação de resolução
+	// (Passo 5) Validação de resolução — aceita até MaxWidth x MaxHeight
 	res, err := uc.prober.Probe(ctx, inputPath)
 	if err != nil {
 		return fmt.Errorf("probe: %w", err)
 	}
-	if !res.Equals(uc.cfg.ExpectedWidth, uc.cfg.ExpectedHeight) {
-		log.Warn("invalid resolution", "width", res.Width, "height", res.Height)
+	if !res.Fits(uc.cfg.MaxWidth, uc.cfg.MaxHeight) {
+		log.Warn("resolution exceeds maximum", "width", res.Width, "height", res.Height,
+			"maxWidth", uc.cfg.MaxWidth, "maxHeight", uc.cfg.MaxHeight)
 		if err := uc.publish(ctx, domain.StatusEvent{
 			LinkID: job.LinkID, Status: domain.StatusProcessingFailed, Reason: domain.ReasonInvalidResolution,
 		}); err != nil {

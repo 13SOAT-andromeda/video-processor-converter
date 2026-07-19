@@ -35,7 +35,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.uc = process_video.New(
 		f.storage, f.prober, f.extractor, f.archiver, f.publisher,
-		process_video.Config{ExpectedWidth: 1920, ExpectedHeight: 1080, TmpDir: t.TempDir()},
+		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: t.TempDir()},
 		slog.New(slog.DiscardHandler),
 	)
 	return f
@@ -71,7 +71,7 @@ func TestExecuteInvalidResolution(t *testing.T) {
 	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
 	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
 	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
-	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1280, Height: 720}, nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 2560, Height: 1440}, nil)
 	f.publisher.On("Publish", mock.Anything, mock.MatchedBy(func(e domain.StatusEvent) bool {
 		return e.Status == domain.StatusProcessingFailed && e.Reason == domain.ReasonInvalidResolution
 	})).Return(nil)
@@ -107,6 +107,27 @@ func TestExecuteHappyPath(t *testing.T) {
 	f.publisher.AssertExpectations(t)
 	f.extractor.AssertExpectations(t)
 	f.archiver.AssertExpectations(t)
+}
+
+func TestExecuteSmallerResolutionAllowed(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1280, Height: 720}, nil)
+	f.extractor.On("ExtractFrames", mock.Anything, mock.Anything, mock.Anything).Return(10, nil)
+	f.archiver.On("Zip", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	f.storage.On("Upload", mock.Anything, "bucket", job.ProcessedKey, mock.Anything, "application/zip").Return(nil)
+	f.storage.On("Delete", mock.Anything, "bucket", job.RawKey).Return(nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingCompleted)).Return(nil)
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.NoError(t, err)
+	f.publisher.AssertExpectations(t)
+	f.extractor.AssertExpectations(t)
 }
 
 func TestExecuteTransientDownloadFailure(t *testing.T) {

@@ -67,7 +67,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	uc := process_video.New(
 		storage, ffprobe.NewProber(), ffmpeg.NewExtractor(cfg.FrameRate), ziparchive.NewArchiver(), publisher,
-		process_video.Config{ExpectedWidth: cfg.ExpectedWidth, ExpectedHeight: cfg.ExpectedHeight, TmpDir: t.TempDir()},
+		process_video.Config{MaxWidth: cfg.MaxWidth, MaxHeight: cfg.MaxHeight, TmpDir: t.TempDir()},
 		logger,
 	)
 
@@ -172,8 +172,8 @@ func TestWorkerInvalidResolution(t *testing.T) {
 	env := newTestEnv(t)
 	env.drainStatusQueue(t)
 
-	rawKey := "lnk_it_bad/raw/sample_720p.mp4"
-	env.uploadFixture(t, "../fixtures/sample_720p.mp4", rawKey)
+	rawKey := "lnk_it_bad/raw/sample_1440p.mp4"
+	env.uploadFixture(t, "../fixtures/sample_1440p.mp4", rawKey)
 
 	resp, err := env.worker.Handle(context.Background(), env.sqsEventFor(t, rawKey))
 	require.NoError(t, err)
@@ -183,9 +183,28 @@ func TestWorkerInvalidResolution(t *testing.T) {
 	require.Equal(t, []string{domain.StatusProcessingStarted, domain.StatusProcessingFailed}, statusesOf(evs))
 	assert.Equal(t, domain.ReasonInvalidResolution, evs[1].Reason)
 
-	exists, err := env.storage.Exists(context.Background(), env.cfg.Bucket, "lnk_it_bad/processed/sample_720p.zip")
+	exists, err := env.storage.Exists(context.Background(), env.cfg.Bucket, "lnk_it_bad/processed/sample_1440p.zip")
 	require.NoError(t, err)
 	assert.False(t, exists, "não deve gerar zip")
+}
+
+// Resoluções menores que o máximo (1920x1080) também devem ser processadas.
+func TestWorkerSmallerResolutionAllowed(t *testing.T) {
+	env := newTestEnv(t)
+	env.drainStatusQueue(t)
+
+	rawKey := "lnk_it_720/raw/sample_720p.mp4"
+	processedKey := "lnk_it_720/processed/sample_720p.zip"
+	env.uploadFixture(t, "../fixtures/sample_720p.mp4", rawKey)
+	t.Cleanup(func() { _ = env.storage.Delete(context.Background(), env.cfg.Bucket, processedKey) })
+
+	resp, err := env.worker.Handle(context.Background(), env.sqsEventFor(t, rawKey))
+	require.NoError(t, err)
+	assert.Empty(t, resp.BatchItemFailures)
+
+	evs := env.drainStatusQueue(t)
+	require.Equal(t, []string{domain.StatusProcessingStarted, domain.StatusProcessingCompleted}, statusesOf(evs))
+	assert.Equal(t, processedKey, evs[1].S3ProcessedKey)
 }
 
 func TestWorkerIdempotency(t *testing.T) {

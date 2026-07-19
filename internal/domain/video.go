@@ -49,7 +49,8 @@ type Resolution struct {
 	Height int
 }
 
-func (r Resolution) Equals(w, h int) bool { return r.Width == w && r.Height == h }
+// Fits diz se a resolução cabe no limite máximo permitido (ambas as dimensões).
+func (r Resolution) Fits(maxW, maxH int) bool { return r.Width <= maxW && r.Height <= maxH }
 
 // NewProcessingJob valida e deriva os campos a partir da chave S3 crua.
 // Espera o layout {linkId}/raw/{fileName}. Qualquer outro layout → ErrNotRawKey
