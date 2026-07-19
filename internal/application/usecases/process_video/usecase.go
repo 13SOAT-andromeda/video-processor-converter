@@ -69,7 +69,7 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir workdir: %w", err)
 	}
-	defer os.RemoveAll(workDir) // limpa /tmp sempre
+	defer func() { _ = os.RemoveAll(workDir) }() // limpa /tmp sempre; best-effort
 
 	inputPath := filepath.Join(workDir, job.FileName)
 	framesDir := filepath.Join(workDir, "frames")

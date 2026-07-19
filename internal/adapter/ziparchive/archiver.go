@@ -17,7 +17,7 @@ type Archiver struct{}
 
 func NewArchiver() *Archiver { return &Archiver{} }
 
-func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) error {
+func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) (err error) {
 	entries, err := filepath.Glob(filepath.Join(srcDir, "*"))
 	if err != nil {
 		return fmt.Errorf("glob src: %w", err)
@@ -26,10 +26,19 @@ func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) error {
 	if err != nil {
 		return fmt.Errorf("create zip: %w", err)
 	}
-	defer zf.Close()
+	defer func() {
+		if cerr := zf.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close zip: %w", cerr)
+		}
+	}()
 
+	// o Close do writer grava o central directory; falha aqui = zip corrompido
 	zw := zip.NewWriter(zf)
-	defer zw.Close()
+	defer func() {
+		if cerr := zw.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close zip writer: %w", cerr)
+		}
+	}()
 
 	for _, path := range entries {
 		if ctx.Err() != nil {
@@ -47,7 +56,7 @@ func addFile(zw *zip.Writer, path string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // leitura: erro de Close não afeta o resultado
 	info, err := f.Stat()
 	if err != nil {
 		return err

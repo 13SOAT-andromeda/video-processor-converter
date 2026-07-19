@@ -24,7 +24,7 @@ func TestZip(t *testing.T) {
 
 	r, err := zip.OpenReader(destZip)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	names := make([]string, 0, len(r.File))
 	for _, f := range r.File {
@@ -40,7 +40,7 @@ func TestZipEmptyDirProducesEmptyZip(t *testing.T) {
 
 	r, err := zip.OpenReader(destZip)
 	require.NoError(t, err)
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	assert.Empty(t, r.File)
 }
 

@@ -18,15 +18,15 @@ var _ ports.ObjectStorage = (*Storage)(nil)
 
 type Storage struct {
 	client     *awss3.Client
-	downloader *manager.Downloader
-	uploader   *manager.Uploader
+	downloader *manager.Downloader //nolint:staticcheck // SA1019: migrar para transfermanager quando estabilizar
+	uploader   *manager.Uploader   //nolint:staticcheck // SA1019
 }
 
 func NewStorage(client *awss3.Client) *Storage {
 	return &Storage{
 		client:     client,
-		downloader: manager.NewDownloader(client),
-		uploader:   manager.NewUploader(client),
+		downloader: manager.NewDownloader(client), //nolint:staticcheck // SA1019
+		uploader:   manager.NewUploader(client),   //nolint:staticcheck // SA1019
 	}
 }
 
@@ -54,11 +54,14 @@ func (s *Storage) Download(ctx context.Context, bucket, key, destPath string) er
 	if err != nil {
 		return fmt.Errorf("create dest file: %w", err)
 	}
-	defer f.Close()
-	if _, err := s.downloader.Download(ctx, f, &awss3.GetObjectInput{
+	if _, err := s.downloader.Download(ctx, f, &awss3.GetObjectInput{ //nolint:staticcheck // SA1019
 		Bucket: aws.String(bucket), Key: aws.String(key),
 	}); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("download %s: %w", key, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close dest file: %w", err)
 	}
 	return nil
 }
@@ -68,8 +71,8 @@ func (s *Storage) Upload(ctx context.Context, bucket, key, srcPath, contentType 
 	if err != nil {
 		return fmt.Errorf("open src file: %w", err)
 	}
-	defer f.Close()
-	if _, err := s.uploader.Upload(ctx, &awss3.PutObjectInput{
+	defer func() { _ = f.Close() }() // leitura: erro de Close não afeta o upload
+	if _, err := s.uploader.Upload(ctx, &awss3.PutObjectInput{ //nolint:staticcheck // SA1019
 		Bucket: aws.String(bucket), Key: aws.String(key),
 		Body: f, ContentType: aws.String(contentType),
 	}); err != nil {
