@@ -28,7 +28,7 @@ MAIN_ARN=$(queue_arn "$MAIN_URL")
 
 # redrive principal -> DLQ (maxReceiveCount=3)
 $AWS_LS sqs set-queue-attributes --queue-url "$MAIN_URL" --attributes \
-  "{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$DLQ_ARN\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\",\"VisibilityTimeout\":\"1800\"}"
+  "{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"$DLQ_ARN\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\",\"VisibilityTimeout\":\"20\"}"
 
 # permitir que o S3 publique na fila principal
 $AWS_LS sqs set-queue-attributes --queue-url "$MAIN_URL" --attributes \
