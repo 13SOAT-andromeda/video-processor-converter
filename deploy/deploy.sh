@@ -43,9 +43,13 @@ if [[ -z "${DD_API_KEY:-}" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 WORKER_FUNCTION="video-processor-worker-${ENVIRONMENT}"
 DLQ_FUNCTION="video-processor-dlq-handler-${ENVIRONMENT}"
-ARTIFACTS_BUCKET="video-processor-artifacts-${ENVIRONMENT}"
+# account_id no sufixo: nome de bucket S3 é global e a conta do AWS Academy
+# Lab reseta a cada sessão — mesmo motivo do bucket de state do Terraform
+# (ver RUNBOOK.md do iac-video-processor-infra e terraform/data.tf deste repo).
+ARTIFACTS_BUCKET="video-processor-artifacts-${ENVIRONMENT}-${ACCOUNT_ID}"
 
 current_worker_image_tag() {
   aws lambda get-function-configuration --function-name "$WORKER_FUNCTION" \
