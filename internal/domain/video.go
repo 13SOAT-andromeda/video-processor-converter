@@ -36,9 +36,13 @@ type ProcessingJob struct {
 }
 
 // StatusEvent é o payload publicado na video-processing-status-queue.
+// json:"eventType" (não "status"): contrato consumido pelo links-service
+// (video-processor-link-api), que decodifica em app.StatusEvent.EventType —
+// mesmo nome de campo usado por ele no LinkEvents/DynamoDB e no Makefile de
+// simulação (make simulate-worker EVENT=...).
 type StatusEvent struct {
 	LinkID         string `json:"linkId"`
-	Status         string `json:"status"`
+	Status         string `json:"eventType"`
 	Reason         string `json:"reason,omitempty"`
 	S3ProcessedKey string `json:"s3ProcessedKey,omitempty"`
 }
