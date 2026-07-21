@@ -115,7 +115,7 @@ echo "    dlq_zip_key  = ${DLQ_ZIP_KEY}"
 cd "${REPO_ROOT}/terraform"
 STATE_BUCKET="${STATE_BUCKET:-video-processor-bucket-andromeda-${ACCOUNT_ID}}"
 terraform init -input=false -reconfigure -backend-config="bucket=${STATE_BUCKET}"
-terraform apply \
+terraform apply -input=false -auto-approve \
   -var="environment=${ENVIRONMENT}" \
   -var="image_tag=${IMAGE_TAG}" \
   -var="dlq_zip_key=${DLQ_ZIP_KEY}" \
