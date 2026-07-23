@@ -12,6 +12,11 @@ resource "aws_lambda_function" "dlq_handler" {
   timeout     = 30
   memory_size = 128
 
+  # Datadog Lambda Extension: pro worker (Image) o binário vem embutido no
+  # Dockerfile; em Lambda por zip a extension só existe via layer pública.
+  # x86_64 pois o build usa GOARCH=amd64 (ver Dockerfile.dlq).
+  layers = ["arn:aws:lambda:${var.region}:464622532012:layer:Datadog-Extension:98"]
+
   environment {
     variables = {
       STATUS_QUEUE_URL = data.aws_sqs_queue.video_processing_status.url

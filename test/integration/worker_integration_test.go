@@ -32,6 +32,7 @@ import (
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/usecases/handle_dlq"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/usecases/process_video"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/domain"
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/mocks"
 )
 
 type testEnv struct {
@@ -65,8 +66,9 @@ func newTestEnv(t *testing.T) *testEnv {
 	storage := s3adapter.NewStorage(s3Client)
 	publisher := sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL)
 
+	metrics := &mocks.MockMetrics{}
 	uc := process_video.New(
-		storage, ffprobe.NewProber(), ffmpeg.NewExtractor(cfg.FrameRate), ziparchive.NewArchiver(), publisher,
+		storage, ffprobe.NewProber(), ffmpeg.NewExtractor(cfg.FrameRate), ziparchive.NewArchiver(), publisher, metrics,
 		process_video.Config{MaxWidth: cfg.MaxWidth, MaxHeight: cfg.MaxHeight, TmpDir: t.TempDir()},
 		logger,
 	)
@@ -76,8 +78,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		s3Client:  s3Client,
 		sqsClient: sqsClient,
 		storage:   storage,
-		worker:    lambdaadapter.NewWorkerHandler(uc, logger),
-		dlq:       lambdaadapter.NewDLQHandler(handle_dlq.New(publisher, logger), logger),
+		worker:    lambdaadapter.NewWorkerHandler(uc, metrics, logger),
+		dlq:       lambdaadapter.NewDLQHandler(handle_dlq.New(publisher, metrics, logger), metrics, logger),
 	}
 }
 

@@ -19,7 +19,8 @@ import (
 
 func newDLQHandler(publisher *mocks.MockStatusPublisher) *lambdaadapter.DLQHandler {
 	logger := slog.New(slog.DiscardHandler)
-	return lambdaadapter.NewDLQHandler(handle_dlq.New(publisher, logger), logger)
+	metrics := &mocks.MockMetrics{}
+	return lambdaadapter.NewDLQHandler(handle_dlq.New(publisher, metrics, logger), metrics, logger)
 }
 
 func TestDLQHandleExtractsLinkID(t *testing.T) {

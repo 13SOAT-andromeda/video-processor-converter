@@ -23,7 +23,7 @@ func TestExecutePublishesMaxRetriesExceeded(t *testing.T) {
 		Reason: domain.ReasonMaxRetriesExceeded,
 	}).Return(nil)
 
-	uc := handle_dlq.New(publisher, slog.New(slog.DiscardHandler))
+	uc := handle_dlq.New(publisher, &mocks.MockMetrics{}, slog.New(slog.DiscardHandler))
 	err := uc.Execute(context.Background(), "lnk_1")
 
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestExecutePublishFailureReturnsWrappedError(t *testing.T) {
 	sentinel := errors.New("sqs down")
 	publisher.On("Publish", mock.Anything, mock.Anything).Return(sentinel)
 
-	uc := handle_dlq.New(publisher, slog.New(slog.DiscardHandler))
+	uc := handle_dlq.New(publisher, &mocks.MockMetrics{}, slog.New(slog.DiscardHandler))
 	err := uc.Execute(context.Background(), "lnk_1")
 
 	require.Error(t, err)

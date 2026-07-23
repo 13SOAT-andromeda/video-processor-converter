@@ -37,12 +37,13 @@ func newWorkerFixture(t *testing.T) *workerFixture {
 		publisher: &mocks.MockStatusPublisher{},
 	}
 	logger := slog.New(slog.DiscardHandler)
+	metrics := &mocks.MockMetrics{}
 	uc := process_video.New(
-		f.storage, f.prober, f.extractor, f.archiver, f.publisher,
+		f.storage, f.prober, f.extractor, f.archiver, f.publisher, metrics,
 		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: t.TempDir()},
 		logger,
 	)
-	f.handler = lambdaadapter.NewWorkerHandler(uc, logger)
+	f.handler = lambdaadapter.NewWorkerHandler(uc, metrics, logger)
 	return f
 }
 

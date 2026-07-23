@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,6 +26,7 @@ type UseCase struct {
 	extractor ports.FrameExtractor
 	archiver  ports.Archiver
 	publisher ports.StatusPublisher
+	metrics   ports.Metrics
 	cfg       Config
 	log       *slog.Logger
 }
@@ -35,10 +37,11 @@ func New(
 	extractor ports.FrameExtractor,
 	archiver ports.Archiver,
 	publisher ports.StatusPublisher,
+	metrics ports.Metrics,
 	cfg Config,
 	log *slog.Logger,
 ) *UseCase {
-	return &UseCase{storage, prober, extractor, archiver, publisher, cfg, log}
+	return &UseCase{storage, prober, extractor, archiver, publisher, metrics, cfg, log}
 }
 
 // Execute roda o pipeline para um job. Retorna:
@@ -48,6 +51,7 @@ func New(
 //   - qualquer outro erro        → falha transitória (o handler deve pedir retry via BatchItemFailures)
 func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error {
 	log := uc.log.With("linkId", job.LinkID, "rawKey", job.RawKey)
+	start := time.Now()
 
 	// (Passo 2 do spec) Idempotência: zip já existe?
 	exists, err := uc.storage.Exists(ctx, job.Bucket, job.ProcessedKey)
@@ -76,15 +80,19 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 	zipPath := filepath.Join(workDir, "output.zip")
 
 	// (Passo 4) Download
+	dlStart := time.Now()
 	if err := uc.storage.Download(ctx, job.Bucket, job.RawKey, inputPath); err != nil {
 		return fmt.Errorf("download raw: %w", err)
 	}
+	uc.metrics.Timing("download.duration", time.Since(dlStart))
 
 	// (Passo 5) Validação de resolução — aceita até MaxWidth x MaxHeight
 	res, err := uc.prober.Probe(ctx, inputPath)
 	if err != nil {
 		return fmt.Errorf("probe: %w", err)
 	}
+	uc.metrics.Distribution("video.width", float64(res.Width))
+	uc.metrics.Distribution("video.height", float64(res.Height))
 	if !res.Fits(uc.cfg.MaxWidth, uc.cfg.MaxHeight) {
 		log.Warn("resolution exceeds maximum", "width", res.Width, "height", res.Height,
 			"maxWidth", uc.cfg.MaxWidth, "maxHeight", uc.cfg.MaxHeight)
@@ -97,21 +105,28 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 	}
 
 	// (Passo 6) Extração de frames
+	extractStart := time.Now()
 	n, err := uc.extractor.ExtractFrames(ctx, inputPath, framesDir)
 	if err != nil {
 		return fmt.Errorf("extract frames: %w", err)
 	}
+	uc.metrics.Timing("extract.duration", time.Since(extractStart))
+	uc.metrics.Distribution("frames.count", float64(n))
 	log.Info("frames extracted", "count", n)
 
 	// (Passo 7) Zip
+	zipStart := time.Now()
 	if err := uc.archiver.Zip(ctx, framesDir, zipPath); err != nil {
 		return fmt.Errorf("zip frames: %w", err)
 	}
+	uc.metrics.Timing("zip.duration", time.Since(zipStart))
 
 	// (Passo 8) Upload do zip
+	uploadStart := time.Now()
 	if err := uc.storage.Upload(ctx, job.Bucket, job.ProcessedKey, zipPath, "application/zip"); err != nil {
 		return fmt.Errorf("upload zip: %w", err)
 	}
+	uc.metrics.Timing("upload.duration", time.Since(uploadStart))
 
 	// (Passo 9) Deleta o raw (best-effort: falha aqui não deve reprocessar tudo)
 	if err := uc.storage.Delete(ctx, job.Bucket, job.RawKey); err != nil {
@@ -125,6 +140,7 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 		return err
 	}
 
+	uc.metrics.Timing("job.duration", time.Since(start))
 	log.Info("processing completed")
 	return nil
 }

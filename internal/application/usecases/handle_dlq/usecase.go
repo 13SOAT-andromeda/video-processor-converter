@@ -11,11 +11,12 @@ import (
 
 type UseCase struct {
 	publisher ports.StatusPublisher
+	metrics   ports.Metrics
 	log       *slog.Logger
 }
 
-func New(publisher ports.StatusPublisher, log *slog.Logger) *UseCase {
-	return &UseCase{publisher: publisher, log: log}
+func New(publisher ports.StatusPublisher, metrics ports.Metrics, log *slog.Logger) *UseCase {
+	return &UseCase{publisher: publisher, metrics: metrics, log: log}
 }
 
 func (uc *UseCase) Execute(ctx context.Context, linkID string) error {
@@ -27,5 +28,6 @@ func (uc *UseCase) Execute(ctx context.Context, linkID string) error {
 	}); err != nil {
 		return fmt.Errorf("publish failed status: %w", err)
 	}
+	uc.metrics.Count("dlq.exhausted", 1)
 	return nil
 }

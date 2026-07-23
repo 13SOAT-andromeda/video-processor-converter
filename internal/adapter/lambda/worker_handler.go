@@ -9,19 +9,24 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/ports"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/usecases/process_video"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/domain"
 )
 
 type WorkerHandler struct {
-	uc  *process_video.UseCase
-	log *slog.Logger
+	uc      *process_video.UseCase
+	metrics ports.Metrics
+	log     *slog.Logger
 }
 
-func NewWorkerHandler(uc *process_video.UseCase, log *slog.Logger) *WorkerHandler {
-	return &WorkerHandler{uc: uc, log: log}
+func NewWorkerHandler(uc *process_video.UseCase, metrics ports.Metrics, log *slog.Logger) *WorkerHandler {
+	return &WorkerHandler{uc: uc, metrics: metrics, log: log}
 }
 
+// Handle nunca retorna erro de função — falhas de item viram BatchItemFailures,
+// então batch.failures é o único sinal de erro visível pro Datadog aqui
+// (aws.lambda.errors nunca dispara nesse desenho).
 func (h *WorkerHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
 	var failures []events.SQSBatchItemFailure
 
@@ -31,6 +36,8 @@ func (h *WorkerHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.
 			failures = append(failures, events.SQSBatchItemFailure{ItemIdentifier: rec.MessageId})
 		}
 	}
+	h.metrics.Count("batch.records", int64(len(ev.Records)))
+	h.metrics.Count("batch.failures", int64(len(failures)))
 	return events.SQSEventResponse{BatchItemFailures: failures}, nil
 }
 
@@ -63,10 +70,14 @@ func (h *WorkerHandler) processRecord(ctx context.Context, rec events.SQSMessage
 
 		err = h.uc.Execute(ctx, job)
 		switch {
-		case err == nil,
-			errors.Is(err, domain.ErrAlreadyProcessed),
-			errors.Is(err, domain.ErrInvalidResolution):
-			// sucesso ou não-retryable → mensagem será deletada pelo ESM
+		case err == nil:
+			h.metrics.Count("job.completed", 1)
+			continue
+		case errors.Is(err, domain.ErrAlreadyProcessed):
+			h.metrics.Count("job.skipped", 1)
+			continue
+		case errors.Is(err, domain.ErrInvalidResolution):
+			h.metrics.Count("job.rejected", 1, "reason:invalid_resolution")
 			continue
 		default:
 			return err // transitório → retry

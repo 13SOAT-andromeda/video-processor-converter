@@ -21,6 +21,7 @@ import (
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ffmpeg"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ffprobe"
 	lambdaadapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/lambda"
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/metrics"
 	s3adapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/s3"
 	sqsadapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/sqs"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ziparchive"
@@ -37,6 +38,12 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg := config.Load()
+
+	statsd, err := metrics.New(cfg.StatsdAddr, logger)
+	if err != nil {
+		logger.Error("dogstatsd client", "err", err)
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -55,8 +62,8 @@ func main() {
 
 	switch *queueKind {
 	case "dlq":
-		uc := handle_dlq.New(sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL), logger)
-		handle = lambdaadapter.NewDLQHandler(uc, logger).Handle
+		uc := handle_dlq.New(sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL), statsd, logger)
+		handle = lambdaadapter.NewDLQHandler(uc, statsd, logger).Handle
 		queueURL = cfg.DLQQueueURL
 	default:
 		s3Client := awss3.NewFromConfig(awsCfg, func(o *awss3.Options) {
@@ -68,10 +75,11 @@ func main() {
 		uc := process_video.New(
 			s3adapter.NewStorage(s3Client), ffprobe.NewProber(), ffmpeg.NewExtractor(cfg.FrameRate),
 			ziparchive.NewArchiver(), sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL),
+			statsd,
 			process_video.Config{MaxWidth: cfg.MaxWidth, MaxHeight: cfg.MaxHeight, TmpDir: cfg.TmpDir},
 			logger,
 		)
-		handle = lambdaadapter.NewWorkerHandler(uc, logger).Handle
+		handle = lambdaadapter.NewWorkerHandler(uc, statsd, logger).Handle
 		queueURL = cfg.WorkerQueueURL
 	}
 

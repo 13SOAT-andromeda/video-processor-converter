@@ -9,17 +9,19 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/ports"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/usecases/handle_dlq"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/domain"
 )
 
 type DLQHandler struct {
-	uc  *handle_dlq.UseCase
-	log *slog.Logger
+	uc      *handle_dlq.UseCase
+	metrics ports.Metrics
+	log     *slog.Logger
 }
 
-func NewDLQHandler(uc *handle_dlq.UseCase, log *slog.Logger) *DLQHandler {
-	return &DLQHandler{uc: uc, log: log}
+func NewDLQHandler(uc *handle_dlq.UseCase, metrics ports.Metrics, log *slog.Logger) *DLQHandler {
+	return &DLQHandler{uc: uc, metrics: metrics, log: log}
 }
 
 func (h *DLQHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
@@ -31,6 +33,8 @@ func (h *DLQHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQS
 			failures = append(failures, events.SQSBatchItemFailure{ItemIdentifier: rec.MessageId})
 		}
 	}
+	h.metrics.Count("batch.records", int64(len(ev.Records)))
+	h.metrics.Count("batch.failures", int64(len(failures)))
 	return events.SQSEventResponse{BatchItemFailures: failures}, nil
 }
 

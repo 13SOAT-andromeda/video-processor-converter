@@ -18,6 +18,8 @@ type Config struct {
 	MaxHeight int
 	FrameRate int
 	TmpDir    string
+	// observabilidade:
+	StatsdAddr string
 }
 
 func getEnv(k, def string) string {
@@ -48,5 +50,6 @@ func Load() Config {
 		MaxHeight:      getEnvInt("MAX_HEIGHT", 1080),
 		FrameRate:      getEnvInt("FRAME_RATE", 1),
 		TmpDir:         getEnv("TMP_DIR", "/tmp"),
+		StatsdAddr:     getEnv("DOGSTATSD_ADDR", "127.0.0.1:8125"),
 	}
 }
