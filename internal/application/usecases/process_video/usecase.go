@@ -66,7 +66,7 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 
 	// Diretório de trabalho isolado por invocação
 	workDir := filepath.Join(uc.cfg.TmpDir, "job-"+uuid.NewString())
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
+	if err := os.MkdirAll(workDir, 0o750); err != nil {
 		return fmt.Errorf("mkdir workdir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(workDir) }() // limpa /tmp sempre; best-effort

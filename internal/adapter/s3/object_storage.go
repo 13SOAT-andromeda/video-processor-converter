@@ -50,7 +50,9 @@ func (s *Storage) Exists(ctx context.Context, bucket, key string) (bool, error) 
 }
 
 func (s *Storage) Download(ctx context.Context, bucket, key, destPath string) error {
-	f, err := os.Create(destPath)
+	// destPath é montado pelo process_video/usecase.go sob o workDir da invocação,
+	// nunca a partir de input do upload diretamente.
+	f, err := os.Create(destPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("create dest file: %w", err)
 	}
@@ -67,7 +69,9 @@ func (s *Storage) Download(ctx context.Context, bucket, key, destPath string) er
 }
 
 func (s *Storage) Upload(ctx context.Context, bucket, key, srcPath, contentType string) error {
-	f, err := os.Open(srcPath)
+	// srcPath é montado pelo process_video/usecase.go sob o workDir da invocação,
+	// nunca a partir de input do upload diretamente.
+	f, err := os.Open(srcPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("open src file: %w", err)
 	}

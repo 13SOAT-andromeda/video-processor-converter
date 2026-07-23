@@ -35,7 +35,10 @@ func parseProbeOutput(out []byte) (domain.Resolution, error) {
 }
 
 func (p *Prober) Probe(ctx context.Context, path string) (domain.Resolution, error) {
-	cmd := exec.CommandContext(ctx, p.binPath,
+	// path é sempre absoluto sob o workDir do config (nunca vem direto do upload) e
+	// nunca começa com "-": não pode virar flag do ffprobe nem sofrer shell injection
+	// (exec.CommandContext roda o binário direto via execve, sem shell).
+	cmd := exec.CommandContext(ctx, p.binPath, // #nosec G204 NOSONAR
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=width,height",

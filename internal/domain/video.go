@@ -66,6 +66,10 @@ func NewProcessingJob(bucket, rawKey string) (ProcessingJob, error) {
 	}
 	linkID := parts[0]
 	fileName := parts[len(parts)-1]
+	if fileName == "." || fileName == ".." {
+		// filepath.Join(workDir, fileName) escaparia do diretório de trabalho da invocação.
+		return ProcessingJob{}, ErrNotRawKey
+	}
 	base := strings.TrimSuffix(fileName, path.Ext(fileName)) // apresentacao.mp4 -> apresentacao
 	return ProcessingJob{
 		Bucket:       bucket,
