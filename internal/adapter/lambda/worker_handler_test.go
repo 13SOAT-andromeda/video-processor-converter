@@ -113,6 +113,16 @@ func TestHandleMalformedBodyIsDropped(t *testing.T) {
 	assert.Empty(t, resp.BatchItemFailures)
 }
 
+func TestHandleBadKeyEncodingIsDropped(t *testing.T) {
+	f := newWorkerFixture(t)
+
+	resp, err := f.handler.Handle(context.Background(), sqsEventForKey(t, "lnk_123/raw/%zzfile.mp4"))
+
+	require.NoError(t, err)
+	assert.Empty(t, resp.BatchItemFailures)
+	f.storage.AssertNotCalled(t, "Exists", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestHandleURLEncodedKeyIsUnescaped(t *testing.T) {
 	f := newWorkerFixture(t)
 	// "lnk_123/raw/video+final.mp4" chega URL-encoded; QueryUnescape converte '+' em espaço

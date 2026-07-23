@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net/url"
 
 	"github.com/aws/aws-lambda-go/events"
 
@@ -46,11 +45,7 @@ func (h *WorkerHandler) processRecord(ctx context.Context, rec events.SQSMessage
 
 	for _, r := range s3ev.Records {
 		bucket := r.S3.Bucket.Name
-		key, err := url.QueryUnescape(r.S3.Object.Key) // S3 envia a key URL-encoded
-		if err != nil {
-			h.log.Error("bad object key encoding; dropping", "key", r.S3.Object.Key)
-			continue
-		}
+		key := r.S3.Object.URLDecodedKey // já vem decodificada: S3Object.UnmarshalJSON faz o QueryUnescape
 
 		job, err := domain.NewProcessingJob(bucket, key)
 		if err != nil {

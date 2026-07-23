@@ -58,6 +58,16 @@ func TestDLQHandlePublishFailureReportsRetry(t *testing.T) {
 	assert.Equal(t, "msg-1", resp.BatchItemFailures[0].ItemIdentifier)
 }
 
+func TestDLQHandleBadKeyEncodingIsDropped(t *testing.T) {
+	publisher := &mocks.MockStatusPublisher{}
+
+	resp, err := newDLQHandler(publisher).Handle(context.Background(), sqsEventForKey(t, "lnk_123/raw/%zzfile.mp4"))
+
+	require.NoError(t, err)
+	assert.Empty(t, resp.BatchItemFailures)
+	publisher.AssertNotCalled(t, "Publish", mock.Anything, mock.Anything)
+}
+
 func TestDLQHandleMalformedBodyIsDropped(t *testing.T) {
 	publisher := &mocks.MockStatusPublisher{}
 
