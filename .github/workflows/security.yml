@@ -13,9 +13,15 @@ jobs:
       - name: Check Build
         run: go build ./...
       - name: Install SAST tools
+        # tools/go.mod isola gosec/govulncheck (e as dependências deles, que
+        # incluem SDKs de IA que não têm nada a ver com o app) do go.mod
+        # principal. "go install" sem versão resolve pelo go.mod/go.sum ali
+        # dentro -- reprodutível, sem precisar de "@latest" nem duplicar a
+        # versão fixa em outro lugar.
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
-          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          cd tools
+          go install github.com/securego/gosec/v2/cmd/gosec
+          go install golang.org/x/vuln/cmd/govulncheck
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Gosec
         run: gosec -fmt=sarif -out=gosec-report.sarif ./... || true
