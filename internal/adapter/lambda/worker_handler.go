@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net/url"
 
 	"github.com/aws/aws-lambda-go/events"
 
@@ -24,9 +23,6 @@ func NewWorkerHandler(uc *process_video.UseCase, metrics ports.Metrics, log *slo
 	return &WorkerHandler{uc: uc, metrics: metrics, log: log}
 }
 
-// Handle nunca retorna erro de função — falhas de item viram BatchItemFailures,
-// então batch.failures é o único sinal de erro visível pro Datadog aqui
-// (aws.lambda.errors nunca dispara nesse desenho).
 func (h *WorkerHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
 	var failures []events.SQSBatchItemFailure
 
@@ -41,9 +37,6 @@ func (h *WorkerHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.
 	return events.SQSEventResponse{BatchItemFailures: failures}, nil
 }
 
-// processRecord retorna erro APENAS para falhas transitórias (que devem retentar).
-// Casos não-retryable (chave não-raw, já processado, resolução inválida) retornam nil
-// → o Event Source Mapping deleta a mensagem.
 func (h *WorkerHandler) processRecord(ctx context.Context, rec events.SQSMessage) error {
 	var s3ev events.S3Event
 	if err := json.Unmarshal([]byte(rec.Body), &s3ev); err != nil {
@@ -53,17 +46,13 @@ func (h *WorkerHandler) processRecord(ctx context.Context, rec events.SQSMessage
 
 	for _, r := range s3ev.Records {
 		bucket := r.S3.Bucket.Name
-		key, err := url.QueryUnescape(r.S3.Object.Key) // S3 envia a key URL-encoded
-		if err != nil {
-			h.log.Error("bad object key encoding; dropping", "key", r.S3.Object.Key)
-			continue
-		}
+		key := r.S3.Object.URLDecodedKey
 
 		job, err := domain.NewProcessingJob(bucket, key)
 		if err != nil {
 			if errors.Is(err, domain.ErrNotRawKey) {
 				h.log.Info("non-raw key; skipping", "key", key)
-				continue // ex.: o próprio .zip em processed/ — não é erro
+				continue
 			}
 			return err
 		}
@@ -80,7 +69,7 @@ func (h *WorkerHandler) processRecord(ctx context.Context, rec events.SQSMessage
 			h.metrics.Count("job.rejected", 1, "reason:invalid_resolution")
 			continue
 		default:
-			return err // transitório → retry
+			return err
 		}
 	}
 	return nil

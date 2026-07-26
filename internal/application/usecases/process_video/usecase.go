@@ -44,11 +44,6 @@ func New(
 	return &UseCase{storage, prober, extractor, archiver, publisher, metrics, cfg, log}
 }
 
-// Execute roda o pipeline para um job. Retorna:
-//   - nil                        → concluído com sucesso (PROCESSING_COMPLETED publicado)
-//   - domain.ErrAlreadyProcessed → zip já existia; nada publicado (idempotência)
-//   - domain.ErrInvalidResolution→ PROCESSING_FAILED(invalid_resolution) publicado; não-retryable
-//   - qualquer outro erro        → falha transitória (o handler deve pedir retry via BatchItemFailures)
 func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error {
 	log := uc.log.With("linkId", job.LinkID, "rawKey", job.RawKey)
 	start := time.Now()
@@ -70,7 +65,7 @@ func (uc *UseCase) Execute(ctx context.Context, job domain.ProcessingJob) error 
 
 	// Diretório de trabalho isolado por invocação
 	workDir := filepath.Join(uc.cfg.TmpDir, "job-"+uuid.NewString())
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
+	if err := os.MkdirAll(workDir, 0o750); err != nil {
 		return fmt.Errorf("mkdir workdir: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(workDir) }() // limpa /tmp sempre; best-effort

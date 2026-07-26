@@ -1,7 +1,5 @@
 //go:build integration
 
-// Package integration exercita o pipeline ponta a ponta contra LocalStack
-// (S3 + SQS reais) com ffmpeg/ffprobe reais. Requer `make compose-up` antes.
 package integration
 
 import (

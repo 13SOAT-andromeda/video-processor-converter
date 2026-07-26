@@ -39,7 +39,6 @@ func (s *Storage) Exists(ctx context.Context, bucket, key string) (bool, error) 
 		if errors.As(err, &nf) {
 			return false, nil
 		}
-		// alguns backends retornam NoSuchKey; tratar também
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
 			return false, nil
@@ -71,7 +70,7 @@ func (s *Storage) Upload(ctx context.Context, bucket, key, srcPath, contentType 
 	if err != nil {
 		return fmt.Errorf("open src file: %w", err)
 	}
-	defer func() { _ = f.Close() }() // leitura: erro de Close não afeta o upload
+	defer func() { _ = f.Close() }()
 	if _, err := s.uploader.Upload(ctx, &awss3.PutObjectInput{ //nolint:staticcheck // SA1019
 		Bucket: aws.String(bucket), Key: aws.String(key),
 		Body: f, ContentType: aws.String(contentType),

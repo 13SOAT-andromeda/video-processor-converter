@@ -51,6 +51,16 @@ func TestNewProcessingJob(t *testing.T) {
 		_, err := domain.NewProcessingJob("bucket", "/raw/x.mp4")
 		assert.ErrorIs(t, err, domain.ErrNotRawKey)
 	})
+
+	t.Run("filename '..' retorna ErrNotRawKey (path traversal)", func(t *testing.T) {
+		_, err := domain.NewProcessingJob("bucket", "lnk_123/raw/..")
+		assert.ErrorIs(t, err, domain.ErrNotRawKey)
+	})
+
+	t.Run("filename '.' retorna ErrNotRawKey", func(t *testing.T) {
+		_, err := domain.NewProcessingJob("bucket", "lnk_123/raw/.")
+		assert.ErrorIs(t, err, domain.ErrNotRawKey)
+	})
 }
 
 func TestResolutionFits(t *testing.T) {

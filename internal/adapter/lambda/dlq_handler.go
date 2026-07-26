@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net/url"
 
 	"github.com/aws/aws-lambda-go/events"
 
@@ -45,11 +44,7 @@ func (h *DLQHandler) processRecord(ctx context.Context, rec events.SQSMessage) e
 		return nil
 	}
 	for _, r := range s3ev.Records {
-		key, err := url.QueryUnescape(r.S3.Object.Key)
-		if err != nil {
-			h.log.Error("bad key encoding in DLQ; dropping", "key", r.S3.Object.Key)
-			continue
-		}
+		key := r.S3.Object.URLDecodedKey // já vem decodificada: S3Object.UnmarshalJSON faz o QueryUnescape
 		job, err := domain.NewProcessingJob(r.S3.Bucket.Name, key)
 		if err != nil {
 			if errors.Is(err, domain.ErrNotRawKey) {

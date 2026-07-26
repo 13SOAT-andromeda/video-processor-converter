@@ -1,5 +1,3 @@
-# dlq-handler: só publica o status de falha na status queue, por isso o
-# footprint mínimo (128MB/30s) e batch de até 10 mensagens.
 resource "aws_lambda_function" "dlq_handler" {
   function_name = "video-processor-dlq-handler-${var.environment}"
   role          = data.aws_iam_role.lab_role.arn

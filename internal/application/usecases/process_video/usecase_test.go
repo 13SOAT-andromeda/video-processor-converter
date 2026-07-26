@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -157,6 +159,149 @@ func TestExecutePublishStartedFailure(t *testing.T) {
 
 	require.Error(t, err)
 	f.storage.AssertNotCalled(t, "Download", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteIdempotencyCheckFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, errors.New("s3 down"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.publisher.AssertNotCalled(t, "Publish", mock.Anything, mock.Anything)
+}
+
+func TestExecuteMkdirWorkDirFailure(t *testing.T) {
+	// TmpDir aponta pra um arquivo (não diretório): MkdirAll embaixo dele falha com ENOTDIR.
+	notADir := filepath.Join(t.TempDir(), "im-a-file")
+	require.NoError(t, os.WriteFile(notADir, []byte("x"), 0o644))
+
+	f := &fixture{
+		storage:   &mocks.MockObjectStorage{},
+		prober:    &mocks.MockVideoProber{},
+		extractor: &mocks.MockFrameExtractor{},
+		archiver:  &mocks.MockArchiver{},
+		publisher: &mocks.MockStatusPublisher{},
+	}
+	f.uc = process_video.New(
+		f.storage, f.prober, f.extractor, f.archiver, f.publisher, &mocks.MockMetrics{},
+		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: notADir},
+		slog.New(slog.DiscardHandler),
+	)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.storage.AssertNotCalled(t, "Download", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteProbeFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{}, errors.New("ffprobe crashed"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.extractor.AssertNotCalled(t, "ExtractFrames", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteInvalidResolutionPublishFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 2560, Height: 1440}, nil)
+	f.publisher.On("Publish", mock.Anything, mock.MatchedBy(func(e domain.StatusEvent) bool {
+		return e.Status == domain.StatusProcessingFailed && e.Reason == domain.ReasonInvalidResolution
+	})).Return(errors.New("sqs down"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, domain.ErrInvalidResolution)
+}
+
+func TestExecuteExtractFramesFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1920, Height: 1080}, nil)
+	f.extractor.On("ExtractFrames", mock.Anything, mock.Anything, mock.Anything).Return(0, errors.New("ffmpeg crashed"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.archiver.AssertNotCalled(t, "Zip", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteZipFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1920, Height: 1080}, nil)
+	f.extractor.On("ExtractFrames", mock.Anything, mock.Anything, mock.Anything).Return(10, nil)
+	f.archiver.On("Zip", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("disk full"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.storage.AssertNotCalled(t, "Upload", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteUploadFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1920, Height: 1080}, nil)
+	f.extractor.On("ExtractFrames", mock.Anything, mock.Anything, mock.Anything).Return(10, nil)
+	f.archiver.On("Zip", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	f.storage.On("Upload", mock.Anything, "bucket", job.ProcessedKey, mock.Anything, "application/zip").Return(errors.New("s3 down"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
+	f.storage.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestExecuteFinalPublishFailure(t *testing.T) {
+	f := newFixture(t)
+	job := newJob(t)
+
+	f.storage.On("Exists", mock.Anything, "bucket", job.ProcessedKey).Return(false, nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingStarted)).Return(nil)
+	f.storage.On("Download", mock.Anything, "bucket", job.RawKey, mock.Anything).Return(nil)
+	f.prober.On("Probe", mock.Anything, mock.Anything).Return(domain.Resolution{Width: 1920, Height: 1080}, nil)
+	f.extractor.On("ExtractFrames", mock.Anything, mock.Anything, mock.Anything).Return(10, nil)
+	f.archiver.On("Zip", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	f.storage.On("Upload", mock.Anything, "bucket", job.ProcessedKey, mock.Anything, "application/zip").Return(nil)
+	f.storage.On("Delete", mock.Anything, "bucket", job.RawKey).Return(nil)
+	f.publisher.On("Publish", mock.Anything, statusEvent(domain.StatusProcessingCompleted)).Return(errors.New("sqs down"))
+
+	err := f.uc.Execute(context.Background(), job)
+
+	require.Error(t, err)
 }
 
 func TestExecuteDeleteRawFailureStillCompletes(t *testing.T) {
