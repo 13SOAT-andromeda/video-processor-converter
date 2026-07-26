@@ -1,0 +1,11 @@
+context/
+docs/
+bin/
+dist/
+test/
+.github/
+.git/
+.env
+*.md
+docker-compose.yml
+deploy/

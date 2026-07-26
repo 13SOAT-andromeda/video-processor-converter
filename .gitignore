@@ -26,10 +26,23 @@ go.work.sum
 
 # env file
 .env
+.env.prod
+.env.dev
+!.env.example
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+*.swp
+.DS_Store
 migration.md
 docs/
 context/
+
+# Binaries / build artifacts
+/bin/
+/dist/
+bootstrap
+*.zip
+
+# Temp
+/tmp/

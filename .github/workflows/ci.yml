@@ -1,0 +1,76 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, develop, "release/**", "feature/**"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.12'
+          cache: true
+      - name: Install ffmpeg (para testes que tocam mídia)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: go mod download
+      - run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Unit tests + coverage
+        run: go test ./... -coverprofile=coverage.out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25.12' }
+      - uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
+        with: { version: latest }
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25.12' }
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Start LocalStack
+        # free tier direto via docker run (não docker-compose.yml): os testes só usam
+        # S3/SQS, que não precisam de Pro/LOCALSTACK_AUTH_TOKEN (só configurado no .env local).
+        run: |
+          docker run -d --name localstack -p 4566:4566 \
+            -e SERVICES=s3,sqs -e AWS_DEFAULT_REGION=us-east-1 \
+            localstack/localstack:4
+      - name: Bootstrap S3/SQS resources
+        env:
+          # 127.0.0.1 (não localhost): no runner, "localhost" resolve pra ::1 (IPv6)
+          # antes de 127.0.0.1, e o LocalStack só escuta em IPv4 -> connection refused.
+          AWS_ENDPOINT_URL: http://127.0.0.1:4566
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET: video-processor-bucket
+        # bootstrap.sh já faz retry até o LocalStack responder; sem sleep fixo.
+        run: bash deploy/localstack/bootstrap.sh
+      - name: Integration tests
+        env:
+          AWS_ENDPOINT_URL: http://127.0.0.1:4566
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET: video-processor-bucket
+          STATUS_QUEUE_URL: http://127.0.0.1:4566/000000000000/video-processing-status-queue
+        run: go test -tags=integration ./test/... -v
+      - name: Teardown
+        if: always()
+        run: docker rm -f localstack
