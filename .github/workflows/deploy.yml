@@ -51,3 +51,31 @@ jobs:
             "s3://${ARTIFACTS_BUCKET}/dlq-handler/${{ github.sha }}.zip"
           aws s3 cp dist/dlq-handler.zip \
             "s3://${ARTIFACTS_BUCKET}/dlq-handler/latest.zip"
+
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: AWS
+    needs: [worker-image, dlq-zip]
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.14.3"
+      - name: Terraform Init
+        run: terraform init -input=false -reconfigure -backend-config="bucket=${{ secrets.AWS_S3_TF_STATE_BUCKET_NAME }}"
+      - name: Terraform Apply
+        run: |
+          terraform apply -input=false -auto-approve \
+            -var="environment=prod" \
+            -var="image_tag=${{ github.sha }}" \
+            -var="dlq_zip_key=dlq-handler/${{ github.sha }}.zip" \
+            -var="dd_api_key=${{ secrets.DD_API_KEY }}"
