@@ -1,6 +1,7 @@
 services:
   datadog-agent:
     image: gcr.io/datadoghq/agent:7
+    profiles: ["datadog"] # opt-in: não sobe com "docker compose up"/"make compose-up" comuns
     environment:
       DD_API_KEY: ${DD_API_KEY}
       DD_SITE: ${DD_SITE:-us5.datadoghq.com}

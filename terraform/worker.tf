@@ -1,6 +1,8 @@
-# processing-worker: timeout de 300s casa com o visibility de 1800s da fila
-# (regra AWS de 6x); 2048MB dá ~1.2 vCPU para o ffmpeg e o ephemeral_storage
-# comporta vídeo + frames + zip em /tmp.
+# processing-worker: timeout de 300s casa com o visibility de 300s da fila
+# (iac-video-processor-infra/prod/messaging.tf) -- retry mais rápido que a
+# folga de 6x recomendada pela AWS, por decisão deliberada (ver comentário lá);
+# 2048MB dá ~1.2 vCPU para o ffmpeg e o ephemeral_storage comporta vídeo +
+# frames + zip em /tmp.
 resource "aws_lambda_function" "worker" {
   function_name = "video-processor-worker-${var.environment}"
   role          = data.aws_iam_role.lab_role.arn
@@ -44,6 +46,6 @@ resource "aws_lambda_event_source_mapping" "worker" {
   function_response_types = ["ReportBatchItemFailures"]
 
   scaling_config {
-    maximum_concurrency = 2
+    maximum_concurrency = 10
   }
 }
