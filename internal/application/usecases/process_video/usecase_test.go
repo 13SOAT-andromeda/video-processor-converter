@@ -36,7 +36,7 @@ func newFixture(t *testing.T) *fixture {
 		publisher: &mocks.MockStatusPublisher{},
 	}
 	f.uc = process_video.New(
-		f.storage, f.prober, f.extractor, f.archiver, f.publisher,
+		f.storage, f.prober, f.extractor, f.archiver, f.publisher, &mocks.MockMetrics{},
 		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: t.TempDir()},
 		slog.New(slog.DiscardHandler),
 	)
@@ -186,7 +186,7 @@ func TestExecuteMkdirWorkDirFailure(t *testing.T) {
 		publisher: &mocks.MockStatusPublisher{},
 	}
 	f.uc = process_video.New(
-		f.storage, f.prober, f.extractor, f.archiver, f.publisher,
+		f.storage, f.prober, f.extractor, f.archiver, f.publisher, &mocks.MockMetrics{},
 		process_video.Config{MaxWidth: 1920, MaxHeight: 1080, TmpDir: notADir},
 		slog.New(slog.DiscardHandler),
 	)

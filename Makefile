@@ -2,7 +2,7 @@
 export
 
 .PHONY: help tidy build build-worker build-dlq dist-dlq test test-cover test-integration lint vet \
-        docker-build compose-up compose-down run-local run-local-dlq clean
+        docker-build compose-up compose-up-dd compose-down run-local run-local-dlq clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "\033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -42,8 +42,11 @@ docker-build: ## Build da imagem do worker
 compose-up: ## Sobe LocalStack (s3, sqs) + bootstrap
 	docker compose up -d --build
 
-compose-down: ## Derruba o ambiente local
-	docker compose down -v
+compose-up-dd: ## Sobe também o datadog-agent (requer DD_API_KEY no .env)
+	docker compose --profile datadog up -d --build
+
+compose-down: ## Derruba o ambiente local (incl. datadog-agent, se estiver no ar)
+	docker compose --profile datadog down -v
 
 run-local: ## Roda o invoker local apontando para a fila principal
 	go run ./cmd/local -queue worker

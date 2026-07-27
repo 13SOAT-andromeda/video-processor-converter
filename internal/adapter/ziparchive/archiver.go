@@ -22,8 +22,6 @@ func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) (err err
 	if err != nil {
 		return fmt.Errorf("glob src: %w", err)
 	}
-	// destZipPath é montado pelo process_video/usecase.go sob o workDir da invocação,
-	// nunca a partir de input do upload diretamente.
 	zf, err := os.Create(destZipPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("create zip: %w", err)
@@ -54,8 +52,6 @@ func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) (err err
 }
 
 func addFile(zw *zip.Writer, path string) error {
-	// path vem de filepath.Glob(srcDir) logo acima em Zip: sempre um arquivo que a
-	// própria aplicação escreveu no framesDir da invocação, nunca input externo direto.
 	f, err := os.Open(path) // #nosec G304 NOSONAR
 	if err != nil {
 		return err

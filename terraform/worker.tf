@@ -1,6 +1,3 @@
-# processing-worker: timeout de 300s casa com o visibility de 1800s da fila
-# (regra AWS de 6x); 2048MB dá ~1.2 vCPU para o ffmpeg e o ephemeral_storage
-# comporta vídeo + frames + zip em /tmp.
 resource "aws_lambda_function" "worker" {
   function_name = "video-processor-worker-${var.environment}"
   role          = data.aws_iam_role.lab_role.arn
@@ -33,9 +30,6 @@ resource "aws_lambda_function" "worker" {
   }
 }
 
-# batch_size=1: um ffmpeg por invocação (lote não caberia no timeout);
-# maximum_concurrency=2 é trava de custo no Academy. Sem ReportBatchItemFailures
-# o ESM ignoraria o batchItemFailures retornado pelo handler.
 resource "aws_lambda_event_source_mapping" "worker" {
   event_source_arn = data.aws_sqs_queue.video_processing.arn
   function_name    = aws_lambda_function.worker.arn
@@ -44,6 +38,6 @@ resource "aws_lambda_event_source_mapping" "worker" {
   function_response_types = ["ReportBatchItemFailures"]
 
   scaling_config {
-    maximum_concurrency = 2
+    maximum_concurrency = 10
   }
 }

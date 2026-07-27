@@ -16,6 +16,7 @@ import (
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ffmpeg"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ffprobe"
 	lambdaadapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/lambda"
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/metrics"
 	s3adapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/s3"
 	sqsadapter "github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/sqs"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/adapter/ziparchive"
@@ -25,6 +26,11 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg := config.Load()
+
+	statsd, err := metrics.New(cfg.StatsdAddr, logger)
+	if err != nil {
+		log.Fatalf("dogstatsd client: %v", err)
+	}
 
 	ctx := context.Background()
 	awsCfg, err := awsclient.Load(ctx, cfg.Region)
@@ -48,6 +54,7 @@ func main() {
 		ffmpeg.NewExtractor(cfg.FrameRate),
 		ziparchive.NewArchiver(),
 		sqsadapter.NewStatusPublisher(sqsClient, cfg.StatusQueueURL),
+		statsd,
 		process_video.Config{
 			MaxWidth:  cfg.MaxWidth,
 			MaxHeight: cfg.MaxHeight,
@@ -56,6 +63,6 @@ func main() {
 		logger,
 	)
 
-	handler := lambdaadapter.NewWorkerHandler(uc, logger)
+	handler := lambdaadapter.NewWorkerHandler(uc, statsd, logger)
 	awslambda.Start(ddlambda.WrapFunction(handler.Handle, nil))
 }

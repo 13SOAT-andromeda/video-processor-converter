@@ -8,29 +8,23 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 
+	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/ports"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/application/usecases/handle_dlq"
 	"github.com/13SOAT-andromeda/video-processor-converter/internal/domain"
 )
 
 type DLQHandler struct {
-	uc  *handle_dlq.UseCase
-	log *slog.Logger
+	uc      *handle_dlq.UseCase
+	metrics ports.Metrics
+	log     *slog.Logger
 }
 
-func NewDLQHandler(uc *handle_dlq.UseCase, log *slog.Logger) *DLQHandler {
-	return &DLQHandler{uc: uc, log: log}
+func NewDLQHandler(uc *handle_dlq.UseCase, metrics ports.Metrics, log *slog.Logger) *DLQHandler {
+	return &DLQHandler{uc: uc, metrics: metrics, log: log}
 }
 
 func (h *DLQHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
-	var failures []events.SQSBatchItemFailure
-
-	for _, rec := range ev.Records {
-		if err := h.processRecord(ctx, rec); err != nil {
-			h.log.Error("dlq record failed (will retry)", "messageId", rec.MessageId, "err", err)
-			failures = append(failures, events.SQSBatchItemFailure{ItemIdentifier: rec.MessageId})
-		}
-	}
-	return events.SQSEventResponse{BatchItemFailures: failures}, nil
+	return processBatch(ctx, ev.Records, h.metrics, h.log, "dlq record failed (will retry)", h.processRecord), nil
 }
 
 func (h *DLQHandler) processRecord(ctx context.Context, rec events.SQSMessage) error {
