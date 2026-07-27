@@ -45,17 +45,22 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Start LocalStack
+        # free tier direto via docker run (não docker-compose.yml): os testes só usam
+        # S3/SQS, que não precisam de Pro/LOCALSTACK_AUTH_TOKEN (só configurado no .env local).
         run: |
           docker run -d --name localstack -p 4566:4566 \
             -e SERVICES=s3,sqs -e AWS_DEFAULT_REGION=us-east-1 \
             localstack/localstack:4
       - name: Bootstrap S3/SQS resources
         env:
+          # 127.0.0.1 (não localhost): no runner, "localhost" resolve pra ::1 (IPv6)
+          # antes de 127.0.0.1, e o LocalStack só escuta em IPv4 -> connection refused.
           AWS_ENDPOINT_URL: http://127.0.0.1:4566
           AWS_DEFAULT_REGION: us-east-1
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           S3_BUCKET: video-processor-bucket
+        # bootstrap.sh já faz retry até o LocalStack responder; sem sleep fixo.
         run: bash deploy/localstack/bootstrap.sh
       - name: Integration tests
         env:
