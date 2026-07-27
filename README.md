@@ -110,9 +110,11 @@ Métricas emitidas (namespace `video.processor.converter.` aplicado automaticame
 |---|---|---|
 | `batch.records` / `batch.failures` | count | nos dois handlers, por lote SQS processado |
 | `job.completed` / `job.skipped` / `job.rejected{reason:invalid_resolution}` | count | worker, por vídeo processado |
-| `download.duration` / `extract.duration` / `zip.duration` / `upload.duration` / `job.duration` | timing | worker, por etapa do pipeline |
+| `download.duration` / `extract.duration` / `zip.duration` / `upload.duration` / `job.duration` | distribution (ms) | worker, por etapa do pipeline |
 | `video.width` / `video.height` / `frames.count` | distribution | worker, por vídeo processado |
 | `dlq.exhausted` | count | dlq-handler, após publicar o status de falha definitiva |
+
+`Metrics.Timing` (interface `ports.Metrics`) é implementado como `Distribution` no client DogStatsD, não como o tipo Timer/Histogram nativo do protocolo — a Lambda Extension agrega métricas customizadas como distributions (percentis calculados no backend); Histogram depende de agregação client-side ao longo de um `flush_interval`, que não se sustenta no modelo de invocações efêmeras/paralelas da Lambda. Na prática, métricas enviadas como Timing não apareciam no Datadog. Consulte com `avg:`/`max:`/`p95:video.processor.converter.<nome>{*}` (sem sufixo `.avg`).
 
 Localmente, sem o `datadog-agent` no ar (seção acima), o client tenta mandar UDP para `127.0.0.1:8125`, ninguém escuta, e cada falha de envio vira só um log `warn` — a app continua funcionando normalmente.
 
