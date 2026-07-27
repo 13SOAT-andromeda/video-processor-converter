@@ -31,7 +31,7 @@ func (d *DogStatsD) Count(name string, value int64, tags ...string) {
 }
 
 func (d *DogStatsD) Timing(name string, dur time.Duration, tags ...string) {
-	if err := d.client.Timing(name, dur, tags, 1); err != nil {
+	if err := d.client.Distribution(name, float64(dur.Milliseconds()), tags, 1); err != nil {
 		d.log.Warn("metrics timing failed", "metric", name, "err", err)
 	}
 }
