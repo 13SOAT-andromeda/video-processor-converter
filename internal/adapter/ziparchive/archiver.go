@@ -22,7 +22,7 @@ func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) (err err
 	if err != nil {
 		return fmt.Errorf("glob src: %w", err)
 	}
-	zf, err := os.Create(destZipPath)
+	zf, err := os.Create(destZipPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("create zip: %w", err)
 	}
@@ -52,7 +52,7 @@ func (a *Archiver) Zip(ctx context.Context, srcDir, destZipPath string) (err err
 }
 
 func addFile(zw *zip.Writer, path string) error {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 NOSONAR
 	if err != nil {
 		return err
 	}

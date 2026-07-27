@@ -8,7 +8,7 @@ Serviço `processing-worker` do desafio de processamento de vídeos (13SOAT / An
 2. O evento `ObjectCreated` do S3 cai na fila `video-processing-queue`, que dispara a Lambda **`processing-worker`** (Event Source Mapping, batch de 1).
 3. O worker: baixa o vídeo, valida a resolução via `ffprobe` (até 1920x1080 — maior é rejeitado com `invalid_resolution`), extrai 1 frame/segundo com `ffmpeg`, compacta os frames em `.zip`, publica o `.zip` de volta em `s3://<bucket>/<linkId>/processed/` e reporta cada etapa (`processing`, `completed`, `rejected`, ...) na fila `video-processing-status-queue`.
 4. Mensagens que esgotam as tentativas do worker caem na `video-processing-dlq`, que dispara a Lambda companion **`dlq-handler`** — ela apenas marca o job como falha definitiva na fila de status (não reprocessa o vídeo).
-5. As duas Lambdas emitem métricas customizadas (`vp.converter.*`) e traces via Datadog.
+5. As duas Lambdas emitem métricas customizadas (`video.processor.converter.*`) e traces via Datadog.
 
 ## Arquitetura em produção
 
@@ -29,7 +29,7 @@ flowchart TD
 
     Worker -. "DogStatsD UDP :8125\n+ traces (ddlambda)" .-> Ext1["Datadog Lambda Extension"]
     DLQHandler -. "DogStatsD UDP :8125\n+ traces (ddlambda)" .-> Ext2["Datadog Lambda Extension"]
-    Ext1 & Ext2 -- "vp.converter.* / traces" --> DD[("Datadog\nus5.datadoghq.com")]
+    Ext1 & Ext2 -- "video.processor.converter.* / traces" --> DD[("Datadog\nus5.datadoghq.com")]
 
     QStatus -.-> Downstream["serviço(s) consumidor(es)\n(fora deste repo)"]
 ```
@@ -63,7 +63,7 @@ aws --endpoint-url=http://localhost:4566 s3 ls s3://video-processor-bucket/lnk_d
 
 ### Testando as métricas do Datadog localmente
 
-O `docker-compose.yml` tem um serviço opcional `datadog-agent` (só DogStatsD ligado — sem APM/logs/process) que recebe as métricas `vp.converter.*` da app local e as encaminha pra conta real do Datadog. Ele **não** sobe com `make compose-up` (fica atrás do profile `datadog`), justamente para não exigir uma API key em quem só quer mexer no S3/SQS.
+O `docker-compose.yml` tem um serviço opcional `datadog-agent` (só DogStatsD ligado — sem APM/logs/process) que recebe as métricas `video.processor.converter.*` da app local e as encaminha pra conta real do Datadog. Ele **não** sobe com `make compose-up` (fica atrás do profile `datadog`), justamente para não exigir uma API key em quem só quer mexer no S3/SQS.
 
 ```bash
 # preencher DD_API_KEY no .env (mesma key usada em produção — ver terraform/variables.tf)
@@ -71,7 +71,7 @@ make compose-up-dd     # sobe LocalStack + datadog-agent
 make run-local          # DOGSTATSD_ADDR já aponta pra 127.0.0.1:8125 por default
 
 # depois de disparar um job (ver seção acima), as métricas aparecem em
-# Metrics Explorer, em ~1-2min, filtrando por "vp.converter.*"
+# Metrics Explorer, em ~1-2min, filtrando por "video.processor.converter.*"
 ```
 
 `make compose-down` derruba tudo, incluindo o `datadog-agent` se estiver no ar.
@@ -89,7 +89,7 @@ make dist-dlq       # gera dist/dlq-handler.zip (deploy via zip)
 Instrumentação em duas frentes, nas duas Lambdas:
 
 - **Traces/APM** — `ddlambda.WrapFunction` (em `cmd/processing-worker/main.go` e `cmd/dlq-handler/main.go`) cria o span raiz da invocação.
-- **Métricas customizadas** — cliente DogStatsD ([`internal/adapter/metrics/datadog.go`](internal/adapter/metrics/datadog.go)) com prefixo `vp.converter.`, identificando as métricas desta app entre as demais do org Datadog.
+- **Métricas customizadas** — cliente DogStatsD ([`internal/adapter/metrics/datadog.go`](internal/adapter/metrics/datadog.go)) com prefixo `video.processor.converter.`, identificando as métricas desta app entre as demais do org Datadog.
 
 Transporte: as duas Lambdas falam com a **Datadog Lambda Extension** via UDP em `127.0.0.1:8125` (dentro do próprio sandbox da Lambda — não é um container/processo à parte). No worker (imagem) a extension já vem embutida no `Dockerfile` (`COPY --from=public.ecr.aws/datadog/lambda-extension`); no `dlq-handler` (deploy via zip) ela entra via **Lambda Layer** pública (`Datadog-Extension`, ver `terraform/dlq.tf`).
 
@@ -104,7 +104,7 @@ Variáveis de ambiente (definidas pelo Terraform deste repo em `worker.tf`/`dlq.
 | `DD_VERSION` | tag da imagem / nome do zip | correlaciona deploy ↔ métricas/traces |
 | `DD_TRACE_ENABLED` | `true` (prod) / `false` (local, via `.env.example`) | liga/desliga o `ddlambda.WrapFunction` |
 
-Métricas emitidas (namespace `vp.converter.` aplicado automaticamente pelo client):
+Métricas emitidas (namespace `video.processor.converter.` aplicado automaticamente pelo client):
 
 | Métrica | Tipo | Onde |
 |---|---|---|

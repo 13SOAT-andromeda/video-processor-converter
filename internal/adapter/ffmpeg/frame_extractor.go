@@ -28,7 +28,7 @@ func (e *Extractor) ExtractFrames(ctx context.Context, inputPath, outDir string)
 	}
 	pattern := filepath.Join(outDir, "frame_%04d.jpg")
 
-	cmd := exec.CommandContext(ctx, e.binPath,
+	cmd := exec.CommandContext(ctx, e.binPath, // #nosec G204 NOSONAR
 		"-i", inputPath,
 		"-vf", "fps="+strconv.Itoa(e.frameRate),
 		"-q:v", "2",

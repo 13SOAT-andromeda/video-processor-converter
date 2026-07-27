@@ -2,16 +2,12 @@ package mocks
 
 import "time"
 
-// MetricCall registra uma chamada individual a MockMetrics.
 type MetricCall struct {
 	Name  string
 	Value float64
 	Tags  []string
 }
 
-// MockMetrics é um stub no-op de ports.Metrics: não exige expectations (.On)
-// para não sobrecarregar testes que não verificam métricas, mas guarda cada
-// chamada para os poucos testes que quiserem checar o que foi emitido.
 type MockMetrics struct {
 	Counts        []MetricCall
 	Timings       []MetricCall

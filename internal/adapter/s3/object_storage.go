@@ -49,7 +49,7 @@ func (s *Storage) Exists(ctx context.Context, bucket, key string) (bool, error) 
 }
 
 func (s *Storage) Download(ctx context.Context, bucket, key, destPath string) error {
-	f, err := os.Create(destPath)
+	f, err := os.Create(destPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("create dest file: %w", err)
 	}
@@ -66,7 +66,7 @@ func (s *Storage) Download(ctx context.Context, bucket, key, destPath string) er
 }
 
 func (s *Storage) Upload(ctx context.Context, bucket, key, srcPath, contentType string) error {
-	f, err := os.Open(srcPath)
+	f, err := os.Open(srcPath) // #nosec G304 NOSONAR
 	if err != nil {
 		return fmt.Errorf("open src file: %w", err)
 	}

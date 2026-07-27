@@ -11,16 +11,13 @@ import (
 
 var _ ports.Metrics = (*DogStatsD)(nil)
 
-// DogStatsD envia métricas via UDP para a Datadog Lambda Extension, com o
-// prefixo "vp.converter." aplicado a todo nome (identifica a origem entre
-// as métricas de outras aplicações no mesmo org Datadog).
 type DogStatsD struct {
 	client *statsd.Client
 	log    *slog.Logger
 }
 
 func New(addr string, log *slog.Logger) (*DogStatsD, error) {
-	client, err := statsd.New(addr, statsd.WithNamespace("vp.converter."))
+	client, err := statsd.New(addr, statsd.WithNamespace("video.processor.converter."))
 	if err != nil {
 		return nil, err
 	}

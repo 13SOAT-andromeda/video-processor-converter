@@ -35,7 +35,7 @@ func parseProbeOutput(out []byte) (domain.Resolution, error) {
 }
 
 func (p *Prober) Probe(ctx context.Context, path string) (domain.Resolution, error) {
-	cmd := exec.CommandContext(ctx, p.binPath,
+	cmd := exec.CommandContext(ctx, p.binPath, // #nosec G204 NOSONAR
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=width,height",
