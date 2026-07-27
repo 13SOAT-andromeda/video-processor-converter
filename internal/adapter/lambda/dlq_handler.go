@@ -24,17 +24,7 @@ func NewDLQHandler(uc *handle_dlq.UseCase, metrics ports.Metrics, log *slog.Logg
 }
 
 func (h *DLQHandler) Handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
-	var failures []events.SQSBatchItemFailure
-
-	for _, rec := range ev.Records {
-		if err := h.processRecord(ctx, rec); err != nil {
-			h.log.Error("dlq record failed (will retry)", "messageId", rec.MessageId, "err", err)
-			failures = append(failures, events.SQSBatchItemFailure{ItemIdentifier: rec.MessageId})
-		}
-	}
-	h.metrics.Count("batch.records", int64(len(ev.Records)))
-	h.metrics.Count("batch.failures", int64(len(failures)))
-	return events.SQSEventResponse{BatchItemFailures: failures}, nil
+	return processBatch(ctx, ev.Records, h.metrics, h.log, "dlq record failed (will retry)", h.processRecord), nil
 }
 
 func (h *DLQHandler) processRecord(ctx context.Context, rec events.SQSMessage) error {
